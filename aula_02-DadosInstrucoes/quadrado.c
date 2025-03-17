@@ -1,8 +1,7 @@
 #include <stdio.h>
 
-int quadrado(int base) {
-    return base * base;
-}
+/* Protótipo */
+int quadrado(int);
 
 int main(void) {
     int num = 5;
@@ -10,4 +9,9 @@ int main(void) {
     printf("%d^2 = %d\n", num, quadrado(num));
 
     return 0;
+}
+
+/* Função */
+int quadrado(int base) {
+    return base * base;
 }
