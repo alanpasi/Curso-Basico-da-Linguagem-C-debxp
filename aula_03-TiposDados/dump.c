@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <stddef.h>
 
 void print_bytes(char *label, void *addr, size_t size);
 
