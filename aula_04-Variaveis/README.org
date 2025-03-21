@@ -1,0 +1,229 @@
+#+title: Curso Básico da Linguagem C
+#+subtitle: Aula 4: Layout de memória
+#+author: Blau Araujo
+#+startup: show2levels
+#+options: toc:3
+
+* Aula 4: Layout de memória
+
+- [[][Vídeo desta aula]]
+
+** Introdução
+
+No fundo, esta é uma aula sobre variáveis. Mas, principalmente para quem está
+iniciando na programação em C, dizer que variáveis são como gavetas onde nós
+guardamos e acessamos dados aleatoriamente é quase a mesma coisa que tentar
+formar cirurgiões com o Jogo da Operação.
+
+#+CAPTION: Jogo da Operação
+[[./jogo-taz.png]]
+
+Isso funciona muito bem com crianças em alfabetização, mas não com quem está
+se preparando para assumir responsabilidades programando numa linguagem que
+deixa por conta da pessoa que programa todos os cuidados com as potenciais
+falhas e vulnerabilidades que podem por em risco, não apenas o programa que
+está sendo escrito, como também todo o sistema em que ele será executado.
+
+Então, nós podemos definir variáveis como elementos da linguagem que serão
+associados a valores manipuláveis na memória, podemos dizer que esses valores
+serão dimensionados conforme seus tipos (assunto da aula passada), que eles
+serão encontrados em endereços específicos na memória... Enfim, mas nada
+disso fará sentido, nem dará uma noção realista das implicações do poder que
+nós temos em mãos quando somos autorizados, pela linguagem C, a manipular
+quase que livremente o espaço de memória.
+
+Em grande parte, é a falta dessa noção que nos leva a situações de risco,
+como (se prepare para o inglês):
+
+- Heap Overflow
+- Stack Overflow
+- Buffer Overflow
+- Use-After-Free (UAF)
+- Double Free
+- Dangling Pointer
+- Memory Leak
+- Uninitialized Memory Access
+- Out-of-Bounds Read/Write
+- Null Pointer Dereference
+- Stack Corruption
+- Heap Corruption
+- Race Conditions
+
+E depois, vão dizer que a linguagem C é insegura, propensa a vulnerabilidades
+de memória... E por aí vai. Sim, a linguagem C não tem mecanismos que nos
+impeçam de cometer erros, mas não é ela que comete os erros.
+
+Por isso, este talvez seja o vídeo mais longo do nosso curso. Nele, nós vamos
+demonstrar como o sistema operacional, o nosso GNU/Linux, lida com a execução
+de programas, especificamente no que diz respeito ao espaço de memória que é
+disponibilizado para eles.
+
+** Processos e memória
+
+- O kernel gerencia a execução de programas através de /processos/.
+- Processos são estruturas de dados associadas a cada um dos programas
+  que estão sendo executados.
+- Uma parte central dessa estrutura de dados é o /layout de memória/, que
+  é uma faixa de endereços mapeada pelo sistema para que os programas possam
+  acessar a memória através de endereços adjacentes.
+
+#+begin_quote
+Essa faixa de endereços é /virtual/ porque são endereços que não correspondem
+aos endereços reais da memória física e, por isso mesmo, os programas terão
+acesso a uma faixa contínua de endereços em vez de localizações espalhadas
+e dispersas ao longo dos endereços reais da memória.
+#+end_quote
+
+** O espaço de endereços (layout de memória)
+
+A faixa de endereços atribuída a um processo é dividida em vários /segmentos
+de memória/ com finalidades específicas.  
+
+#+caption: Layout de memória
+[[./mem-layout.png]]
+
+
+*** Dados copiados do binário do programa
+
+Nos endereços mais baixos da memória virtual, serão copiados os dados
+presentes nas /seções/ dos binários dos nossos programas:
+
+- =.text=: O conteúdo executável do programa (código).
+- =.rodata=: Dados constantes.
+- =.data=: Dados globais e estáticos inicializados.
+- =.bss=: Dados globais e estáticos não inicializados.
+
+*** Dados dinâmicos
+
+A região intermediária dos endereços mapeados, chamada de /heap/, é reservada
+ao uso com:
+
+- Dados que requeiram espaços alocados dinamicamente ao longo da execução
+  do programa (com a função =malloc=, por exemplo).
+- Mapeamento do conteúdo de arquivos e grandes volumes de dados.
+- Conteúdo de bibliotecas carregadas dinamicamente, como a =glibc=, o
+  carregador dinâmico (=ld-linux=) e a biblioteca =vdso=, do Linux.
+
+#+begin_quote
+A localização dos dados dinâmicos é aleatória dentro da faixa do /heap/
+que, conforme a necessidade, se expande na direção dos endereços mais
+altos, ou seja, em direção à pilha.
+#+end_quote
+
+*** Pilha (stack)
+
+Os endereços mais altos da memória virtual são reservados à /pilha de
+execução/ do programa. Uma /pilha/, ou /stack/, é uma estrutura onde os dados
+são, literalmente, empilhados uns sobre os outros. No GNU/Linux, a base
+da pilha está no seu endereço mais alto, enquanto que os novos dados serão
+empilhados na direção dos endereços mais baixos.
+
+Ao ser iniciada, a pilha recebe, da sua base para o topo:
+
+- Lista das variáveis exportadas para o processo (/ambiente/ / /envp/).
+- Lista dos argumentos de linha de comando que invocaram o programa (/argv/).
+- Um valor inteiro relativo à quantidade de argumentos (/argc/).
+
+No caso de programas escritos em C, ao serem iniciados, o dado no topo da
+pilha, a quantidade de argumentos, é removido e, a partir daí, são
+empilhados os dados locais da função =main=, o que inclui:
+
+- Variáveis declaradas nos parâmetros da função.
+- Variáveis declaradas no corpo da função.
+
+À medida em que o programa é executado, os dados das outras funções
+chamadas também serão empilhados até serem removidos após seus respectivos
+términos.  
+
+** Resumo do mapeamento de memória
+
+O kernel expõe diversas informações sobre os processos em execução na
+forma de arquivos de texto no diretório virtual =/proc=. Nele, cada processo
+terá um diretório e, nesses diretórios, nós encontramos o arquivo =maps=,
+que contém uma versão resumida de todas as faixas de endereços mapeados.
+
+Para visualizar o mapeamento de um processo de número =PID=:
+
+#+begin_example
+cat /proc/PID/maps
+#+end_example
+
+** Programa =memlo.c=
+
+Para demonstrar como os dados de um programa são mapeados na memória virtual,
+nós vamos utilizar o programma =memlo.c=:
+
+#+begin_src c
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+
+#define APGL_HINT 0x4c475041
+#define BLAU_HINT 0x55414c42
+
+int bss_var;
+int data_var = APGL_HINT;
+const int ro_data = BLAU_HINT;
+
+int func(void) {
+    return 42;
+}
+
+int main(int argc, char **argv, char **envp) {
+
+    static int lsni_var;
+    static int lsi_var = BLAU_HINT;
+
+    int lni_var;
+    int li_var = APGL_HINT;
+
+    char *str_ptr = "Salve!";
+
+    void *heap_ptr = malloc(16);
+
+    puts("[stack]");
+    printf("%p             início do vetor envp (%s)\n", *envp, *envp);
+    printf("%p             início do vetor argv (%s)\n", *argv, *argv);
+    printf("%p  envp       ponteiro para envp (%p)\n", envp, *envp);
+    printf("%p  argv       ponteiro para argv (%p)\n", argv, *argv);
+    printf("%p  lni_var    variável não inicializada\n", &lni_var);
+    printf("%p  li_var     variável inicializada\n", &li_var);
+    printf("%p  &str_ptr   ponteiro com endereço da string (%p)\n", &str_ptr, "Salve!");
+    printf("%p  &heap_ptr  ponteiro com endereço na heap (%p)\n", &heap_ptr, heap_ptr);
+    printf("%p  argc       quantidade de argumentos (%d)\n", &argc, argc);
+
+    puts("[mmap]");
+    printf("%p  malloc()   função da glibc\n", (void *)malloc);
+    printf("%p  printf()   função da glibc\n", (void *)printf);
+
+    puts("[heap]");
+    printf("%p  heap_ptr   espaço alocado dinamicamente na heap\n", heap_ptr);
+
+    puts("[.bss]");
+    printf("%p  lsni_var   variável local estática não inicializada\n", &lsni_var);
+    printf("%p  bss_var    variável global não inicializada\n", &bss_var);
+    
+    puts("[.data]");
+    printf("%p  lsi_var    variável local estática inicializada\n", &lsi_var);
+    printf("%p  data_var   variável global inicializada\n", &data_var);
+
+    puts("[.rodata]");
+    printf("%p  str_ptr    endereço de uma string (%s)\n", str_ptr, str_ptr);
+    printf("%p  ro_data    constante global\n", &ro_data);
+
+    puts("[.text]");
+    printf("%p  main()     função main\n", (void *)main);
+    printf("%p  func()     função func\n", (void *)func);
+    
+    free(heap_ptr);
+
+    sleep(300);
+    
+    return EXIT_SUCCESS;
+}
+#+end_src
+
+#+begin_quote
+A análise do programa em si ficará como parte dos execícios desta aula.
+#+end_quote
+
