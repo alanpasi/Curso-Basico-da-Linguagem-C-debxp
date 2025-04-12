@@ -18,8 +18,9 @@ int main(int argc, char **argv) {
         NULL    /* (void *) 0 */
     };
 
+    printf("list[]\n");
     print_list(lista);
-    printf("\n");
+    printf("argv[]\n");
     print_list(argv);
     printf("\n");
 
